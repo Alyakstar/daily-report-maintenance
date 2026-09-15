@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 
 import { LINES } from "../constants";
 import { deleteReport, getReports } from "../utils/storage";
@@ -22,7 +23,8 @@ export default function History() {
 
   const [search, setSearch] = useState("");
 
-  const [date, setDate] = useState("All");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [line, setLine] = useState("All");
   const [machine, setMachine] = useState("All");
 
@@ -60,22 +62,6 @@ export default function History() {
   useEffect(() => {
     load();
   }, []);
-
-  // =========================================================
-  // AVAILABLE DATES
-  // =========================================================
-
-  const dates = useMemo(() => {
-    return [
-      ...new Set(
-        reports
-          .map((report) => report.date)
-          .filter(Boolean)
-      ),
-    ]
-      .sort()
-      .reverse();
-  }, [reports]);
 
   // =========================================================
   // AVAILABLE MACHINES
@@ -128,9 +114,17 @@ export default function History() {
               .includes(query)
           );
 
+        const startDateOk =
+          !startDate ||
+          report.date >= startDate;
+
+        const endDateOk =
+          !endDate ||
+          report.date <= endDate;
+
         const dateOk =
-          date === "All" ||
-          report.date === date;
+          startDateOk &&
+          endDateOk;
 
         const lineOk =
           line === "All" ||
@@ -163,7 +157,8 @@ export default function History() {
   }, [
     reports,
     search,
-    date,
+    startDate,
+    endDate,
     line,
     machine,
     teamShift,
@@ -198,40 +193,29 @@ export default function History() {
   }
 
   // =========================================================
-  // RENDER PDF
+  // RENDER SINGLE PDF
   // =========================================================
 
-  async function renderPdf(
-    fileName
-  ) {
+  async function renderPdf(fileName) {
     setExporting(true);
 
     try {
-      // Tunggu React render ReportDocument
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            350
-          )
+      await new Promise((resolve) =>
+        setTimeout(resolve, 350)
       );
 
       if (!pdfRef.current) {
-        throw new Error(
-          "Template PDF belum siap."
-        );
+        throw new Error("Template PDF belum siap.");
       }
 
-      const canvas =
-        await html2canvas(
-          pdfRef.current,
-          {
-            scale: 2,
-            useCORS: true,
-            backgroundColor:
-              "#ffffff",
-          }
-        );
+      const canvas = await html2canvas(
+        pdfRef.current,
+        {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        }
+      );
 
       const pdf = new jsPDF({
         orientation: "landscape",
@@ -241,52 +225,23 @@ export default function History() {
 
       const pageWidth =
         pdf.internal.pageSize.getWidth();
-
       const pageHeight =
         pdf.internal.pageSize.getHeight();
-
       const margin = 5;
 
-      const maxWidth =
-        pageWidth -
-        margin * 2;
-
-      const maxHeight =
-        pageHeight -
-        margin * 2;
-
       const ratio = Math.min(
-        maxWidth /
-          canvas.width,
-        maxHeight /
-          canvas.height
+        (pageWidth - margin * 2) / canvas.width,
+        (pageHeight - margin * 2) / canvas.height
       );
 
-      const width =
-        canvas.width *
-        ratio;
-
-      const height =
-        canvas.height *
-        ratio;
-
-      const x =
-        (pageWidth -
-          width) /
-        2;
-
-      const y =
-        (pageHeight -
-          height) /
-        2;
+      const width = canvas.width * ratio;
+      const height = canvas.height * ratio;
 
       pdf.addImage(
-        canvas.toDataURL(
-          "image/png"
-        ),
+        canvas.toDataURL("image/png"),
         "PNG",
-        x,
-        y,
+        (pageWidth - width) / 2,
+        (pageHeight - height) / 2,
         width,
         height
       );
@@ -294,15 +249,94 @@ export default function History() {
       pdf.save(fileName);
     } catch (err) {
       console.error(err);
-
       alert(
-        `Export PDF gagal: ${
-          err.message || err
-        }`
+        `Export PDF gagal: ${err.message || err}`
       );
     } finally {
       setExporting(false);
+      setExportReports([]);
+    }
+  }
 
+  // =========================================================
+  // RENDER FULL PDF - ONE GROUP PER PDF PAGE
+  // =========================================================
+
+  async function renderFullPdf(fileName) {
+    setExporting(true);
+
+    try {
+      await new Promise((resolve) =>
+        setTimeout(resolve, 500)
+      );
+
+      if (!pdfRef.current) {
+        throw new Error("Template PDF belum siap.");
+      }
+
+      const pages =
+        pdfRef.current.querySelectorAll(
+          ".full-pdf-report-page"
+        );
+
+      if (!pages.length) {
+        throw new Error(
+          "Tidak ada halaman report untuk diexport."
+        );
+      }
+
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth =
+        pdf.internal.pageSize.getWidth();
+      const pageHeight =
+        pdf.internal.pageSize.getHeight();
+      const margin = 5;
+
+      for (let index = 0; index < pages.length; index += 1) {
+        const canvas = await html2canvas(
+          pages[index],
+          {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+          }
+        );
+
+        if (index > 0) {
+          pdf.addPage("a4", "landscape");
+        }
+
+        const ratio = Math.min(
+          (pageWidth - margin * 2) / canvas.width,
+          (pageHeight - margin * 2) / canvas.height
+        );
+
+        const width = canvas.width * ratio;
+        const height = canvas.height * ratio;
+
+        pdf.addImage(
+          canvas.toDataURL("image/png"),
+          "PNG",
+          (pageWidth - width) / 2,
+          (pageHeight - height) / 2,
+          width,
+          height
+        );
+      }
+
+      pdf.save(fileName);
+    } catch (err) {
+      console.error(err);
+      alert(
+        `Export PDF gagal: ${err.message || err}`
+      );
+    } finally {
+      setExporting(false);
       setExportReports([]);
     }
   }
@@ -319,7 +353,7 @@ export default function History() {
     ]);
 
     setTimeout(() => {
-      renderPdf(
+      renderFullPdf(
         `Daily-Report-${report.date}-${report.machine}.pdf`
       );
     }, 150);
@@ -327,101 +361,179 @@ export default function History() {
 
   // =========================================================
   // DOWNLOAD FULL DAILY REPORT
+  //
+  // Filter bersifat independen:
+  // - Team Shift = All  -> semua team
+  // - Work Shift = All  -> semua work shift
+  // - Date range        -> semua tanggal dalam rentang
+  //
+  // Hasil tetap dikelompokkan per:
+  // Date + Team Shift + Work Shift
+  // dan setiap group menjadi halaman PDF sendiri.
   // =========================================================
 
   function downloadFull() {
-    if (
-      filtered.length === 0
-    ) {
-      alert(
-        "Tidak ada data untuk didownload."
-      );
-
+    if (filtered.length === 0) {
+      alert("Tidak ada data untuk didownload.");
       return;
     }
 
-    /*
-      Kita cek kombinasi header Daily Report.
-
-      Contoh satu group:
-      2026-09-14 | White | Night Shift
-
-      Kalau hasil filter punya lebih dari satu group,
-      jangan dicampur ke satu PDF karena header-nya
-      hanya bisa menampilkan satu tanggal dan satu shift.
-    */
-
-    const groups = {};
-
-    filtered.forEach(
-      (report) => {
-        const key = `${
-          report.date || ""
-        }|${
-          report.teamShift ||
-          ""
-        }|${
-          report.workShift ||
-          ""
-        }`;
-
-        if (!groups[key]) {
-          groups[key] =
-            [];
-        }
-
-        groups[key].push(
-          report
-        );
-      }
-    );
-
-    const groupKeys =
-      Object.keys(groups);
-
     if (
-      groupKeys.length > 1
+      startDate &&
+      endDate &&
+      startDate > endDate
     ) {
       alert(
-        "Data yang tampil masih terdiri dari beberapa tanggal atau shift.\n\n" +
-          "Gunakan filter sampai report hanya memiliki satu kombinasi:\n" +
-          "Tanggal + Team Shift + Work Shift.\n\n" +
-          "Setelah itu klik Download Full Daily Report lagi."
+        "Start Date tidak boleh lebih besar dari End Date."
       );
-
       return;
     }
 
-    const firstReport =
-      filtered[0];
+    setExportReports(filtered);
 
-    const safeWorkShift =
-      String(
-        firstReport.workShift ||
-          "Shift"
-      ).replaceAll(
-        " ",
-        "-"
-      );
-
-    const safeTeamShift =
-      String(
-        firstReport.teamShift ||
-          "Team"
-      ).replaceAll(
-        " ",
-        "-"
-      );
-
-    setExportReports(
+    const startLabel =
+      startDate ||
       filtered
-    );
+        .map((report) => report.date)
+        .filter(Boolean)
+        .sort()[0] ||
+      "All-Date";
+
+    const endLabel =
+      endDate ||
+      filtered
+        .map((report) => report.date)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ||
+      startLabel;
+
+    const teamLabel =
+      teamShift === "All"
+        ? "All-Team"
+        : teamShift.replaceAll(" ", "-");
+
+    const workLabel =
+      workShift === "All"
+        ? "All-Work-Shift"
+        : workShift.replaceAll(" ", "-");
+
+    const dateLabel =
+      startLabel === endLabel
+        ? startLabel
+        : `${startLabel}_to_${endLabel}`;
 
     setTimeout(() => {
-      renderPdf(
-        `Daily-Report-${firstReport.date}-${safeTeamShift}-${safeWorkShift}.pdf`
+      renderFullPdf(
+        `Full-Daily-Report-${dateLabel}-${teamLabel}-${workLabel}.pdf`
       );
     }, 150);
+  }
+
+  // =========================================================
+  // DOWNLOAD EXCEL RAW DATA
+  // =========================================================
+
+  function downloadExcel() {
+    if (filtered.length === 0) {
+      alert("Tidak ada data untuk didownload.");
+      return;
+    }
+
+    if (
+      startDate &&
+      endDate &&
+      startDate > endDate
+    ) {
+      alert(
+        "Start Date tidak boleh lebih besar dari End Date."
+      );
+      return;
+    }
+
+    const excelRows = filtered.map((report, index) => ({
+      "No.": index + 1,
+      Date: report.date || "",
+      "Team Shift": report.teamShift || "",
+      "Work Shift": report.workShift || "",
+      Line: report.line || "",
+      Machine: report.machine || "",
+      Source: report.source || "",
+      Problem: report.problem || "",
+      "Line Stop (min)": Number(report.lineStop) || 0,
+      Frequency: Number(report.frequency) || 1,
+      Rootcause: report.rootcause || "",
+      Action: report.action || "",
+      PIC: report.pic || "",
+      "Created At": report.createdAt || report.created_at || "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 13 },
+      { wch: 13 },
+      { wch: 15 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 10 },
+      { wch: 40 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 40 },
+      { wch: 40 },
+      { wch: 18 },
+      { wch: 24 },
+    ];
+
+    worksheet["!autofilter"] = {
+      ref: worksheet["!ref"],
+    };
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      "Raw Data"
+    );
+
+    const startLabel =
+      startDate ||
+      filtered
+        .map((report) => report.date)
+        .filter(Boolean)
+        .sort()[0] ||
+      "All-Date";
+
+    const endLabel =
+      endDate ||
+      filtered
+        .map((report) => report.date)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ||
+      startLabel;
+
+    const dateLabel =
+      startLabel === endLabel
+        ? startLabel
+        : `${startLabel}_to_${endLabel}`;
+
+    const teamLabel =
+      teamShift === "All"
+        ? "All-Team"
+        : teamShift.replaceAll(" ", "-");
+
+    const workLabel =
+      workShift === "All"
+        ? "All-Work-Shift"
+        : workShift.replaceAll(" ", "-");
+
+    XLSX.writeFile(
+      workbook,
+      `Daily-Report-Raw-Data-${dateLabel}-${teamLabel}-${workLabel}.xlsx`
+    );
   }
 
   // =========================================================
@@ -431,7 +543,9 @@ export default function History() {
   function resetFilters() {
     setSearch("");
 
-    setDate("All");
+    setStartDate("");
+
+    setEndDate("");
 
     setTeamShift("All");
 
@@ -527,43 +641,41 @@ export default function History() {
             />
           </label>
 
-          {/* DATE */}
+          {/* START DATE */}
 
           <label>
             <span>
-              Tanggal
+              Start Date
             </span>
 
-            <select
-              value={date}
-              onChange={(
-                event
-              ) =>
-                setDate(
-                  event.target
-                    .value
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) =>
+                setStartDate(
+                  event.target.value
                 )
               }
-            >
+            />
+          </label>
 
-              <option value="All">
-                Semua Tanggal
-              </option>
+          {/* END DATE */}
 
-              {dates.map(
-                (item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {formatDate(
-                      item
-                    )}
-                  </option>
+          <label>
+            <span>
+              End Date
+            </span>
+
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(event) =>
+                setEndDate(
+                  event.target.value
                 )
-              )}
-
-            </select>
+              }
+            />
           </label>
 
           {/* TEAM SHIFT */}
@@ -747,11 +859,11 @@ export default function History() {
                   "#98a2b3",
               }}
             >
-              Full PDF dapat
-              dibuat selama hasil
-              filter hanya memiliki
-              satu tanggal dan satu
-              shift.
+              Full PDF mengikuti
+              rentang tanggal dan filter
+              shift. Pilih Semua untuk
+              mengikutsertakan seluruh
+              Team / Work Shift.
             </div>
 
           </div>
@@ -776,6 +888,17 @@ export default function History() {
               }
             >
               Reset Filter
+            </button>
+
+            <button
+              className="button button-secondary"
+              onClick={downloadExcel}
+              disabled={
+                exporting ||
+                !filtered.length
+              }
+            >
+              ↓ Download Excel
             </button>
 
             <button
@@ -1158,22 +1281,43 @@ export default function History() {
       {/* HIDDEN PDF */}
       {/* ================================================= */}
 
-      {exportReports.length >
-        0 && (
+      {exportReports.length > 0 && (
+        <div
+          className="pdf-hidden-container"
+          ref={pdfRef}
+        >
+          {(() => {
+            const groups = {};
 
-        <div className="pdf-hidden-container">
+            exportReports.forEach((report) => {
+              const key =
+                `${report.date || ""}|` +
+                `${report.teamShift || ""}|` +
+                `${report.workShift || ""}`;
 
-          <ReportDocument
-            reports={
-              exportReports
-            }
-            reportRef={
-              pdfRef
-            }
-          />
+              if (!groups[key]) {
+                groups[key] = [];
+              }
 
+              groups[key].push(report);
+            });
+
+            return Object.entries(groups)
+              .sort(([keyA], [keyB]) =>
+                keyA.localeCompare(keyB)
+              )
+              .map(([key, group]) => (
+                <div
+                  className="full-pdf-report-page"
+                  key={key}
+                >
+                  <ReportDocument
+                    reports={group}
+                  />
+                </div>
+              ));
+          })()}
         </div>
-
       )}
 
     </div>

@@ -155,6 +155,21 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 .upload-preview strong { font-size: 12px; }
 .upload-preview small { margin-top: 4px; color: #98a2b3; word-break: break-all; }
 
+.remove-image-button {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.remove-image-button:hover {
+  background: #fef2f2;
+}
+
 .form-actions { margin-top: 22px; border-top: 1px solid var(--border); padding: 17px 22px; display: flex; align-items: center; justify-content: space-between; gap: 15px; background: #fcfcfd; }
 .form-hint { font-size: 11px; color: #98a2b3; }
 
@@ -310,14 +325,15 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
   line-height: 1.2;
 }
 .exact-company strong {
-  font-size: 11px;
+  font-size: 22px;
   color: #d40000;
   margin-bottom: 5px;
   font-weight: 900;
 }
 .exact-company span {
   display: block;
-  font-size: 8px;
+  font-size: 14px;
+  line-height: 1.25;
   font-weight: 700;
 }
 .exact-title-block {
@@ -329,13 +345,13 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 }
 .exact-title-block h2 {
   margin: 0 0 7px;
-  font-size: 21px;
+  font-size: 26px;
   font-weight: 900;
-  letter-spacing: -.3px;
+  letter-spacing: -0.3px;
 }
 .exact-title-block p {
   margin: 0;
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 800;
 }
 .yellow-strip {
@@ -396,7 +412,7 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 .exact-report-table .main-head-row > th {
   background: #fff200;
   height: 68px;
-  font-size: 7.8px;
+  font-size: 11px;
 }
 .exact-report-table .main-head-row > .source-group {
   height: 24px;
@@ -404,7 +420,7 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 }
 .exact-report-table .source-head-row th {
   height: 44px;
-  font-size: 7px;
+  font-size: 10px;
   color: #111;
 }
 .exact-report-table .source-bm { background: #ff1f4b; }
@@ -412,43 +428,142 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 .exact-report-table .source-imp { background: #20a4ff; }
 .exact-report-table .source-cm { background: #ff9d19; }
 .exact-report-table tbody td {
-  height: 145px;
+  height: auto;
+  min-height: 145px;
   background: #fff;
-  font-size: 8.6px;
-  line-height: 1.25;
+  font-size: 12px;
+  line-height: 1.35;
+  vertical-align: top;
+  padding: 7px 5px;
 }
-.exact-report-table .col-no { width: 3%; }
-.exact-report-table .col-line { width: 12%; }
-.exact-report-table .col-machine { width: 9%; }
-.exact-report-table .source-group { width: 10%; }
-.exact-report-table .col-problem { width: 12%; }
-.exact-report-table .col-stop { width: 6%; }
-.exact-report-table .col-root { width: 11%; }
-.exact-report-table .col-img-problem { width: 14%; }
-.exact-report-table .col-action { width: 12%; }
-.exact-report-table .col-img-action { width: 13%; }
-.exact-report-table .source-head-row th { width: 2.5%; }
-.exact-report-table .center { text-align: center; }
+
+/* ================================
+   COLUMN WIDTH
+   ================================ */
+
+.exact-report-table .col-no {
+  width: 3%;
+}
+
+.exact-report-table .col-line {
+  width: 10%;
+}
+
+.exact-report-table .col-machine {
+  width: 9%;
+}
+
+.exact-report-table .source-group {
+  width: 9%;
+}
+
+.exact-report-table .col-stop {
+  width: 6%;
+}
+
+.exact-report-table .col-frequency {
+  width: 7%;
+}
+
+.exact-report-table .col-problem {
+  width: 16%;
+}
+
+.exact-report-table .col-root {
+  width: 13%;
+}
+
+.exact-report-table .col-action {
+  width: 16%;
+}
+
+.exact-report-table .col-pic {
+  width: 8%;
+}
+
+.exact-report-table .source-head-row th {
+  width: 3%;
+}
+
+/* ================================
+   CELL ALIGNMENT
+   ================================ */
+
+.exact-report-table .center {
+  text-align: center;
+  vertical-align: middle;
+}
+
 .exact-report-table .source-check {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 900;
   padding: 0;
+  vertical-align: middle;
 }
+
 .exact-line-stop {
-  font-size: 10px !important;
+  font-size: 14px !important;
   font-weight: 900;
+  vertical-align: middle !important;
 }
-.exact-image-cell {
-  padding: 3px !important;
+
+/* ================================
+   PROBLEM / ACTION + IMAGE
+   ================================ */
+
+.combined-report-td {
+  vertical-align: top !important;
+  padding: 7px !important;
 }
-.exact-image-cell img {
+
+.report-combined-cell {
   width: 100%;
-  height: 135px;
-  object-fit: contain;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
-.exact-image-cell strong {
-  font-size: 10px;
+
+.report-cell-text {
+  width: 100%;
+  min-height: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.report-cell-image {
+  width: 62px !important;
+  height: 62px !important;
+
+  min-width: 62px;
+  min-height: 62px;
+
+  max-width: 62px !important;
+  max-height: 62px !important;
+
+  display: block;
+  flex: none;
+
+  margin: 3px auto 0;
+
+  object-fit: cover;
+
+  border: 1px solid #d0d5dd;
+}
+
+/* ================================
+   EMPTY REPORT
+   ================================ */
+
+.empty-report-row {
+  height: 140px !important;
+  color: #666;
+  text-align: center;
+  vertical-align: middle !important;
 }
 .empty-report-row {
   height: 140px !important;
@@ -457,7 +572,12 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
 
 /* Supabase / History V3 */
 .history-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.history-filter-grid.six { grid-template-columns: 1.6fr 1.2fr 1fr 1fr 1fr 1.2fr; }
+.history-filter-grid.six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.history-filter-grid.six > label:first-child {
+  grid-column: 1 / -1;
+}
 .history-filter-grid label { display: flex; flex-direction: column; gap: 7px; }
 .history-filter-grid label > span { font-size: 11px; color: #667085; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; }
 .download-all-row { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 12px; color: #667085; }

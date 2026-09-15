@@ -1,11 +1,24 @@
-import { useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 import ReportDocument from "../components/ReportDocument";
-import { saveReport } from "../utils/storage";
+
+import {
+  getReportsByGroup,
+  saveReport,
+} from "../utils/storage";
 
 export default function PreviewReport() {
   const location = useLocation();
@@ -13,16 +26,143 @@ export default function PreviewReport() {
 
   const reportRef = useRef(null);
 
-  const [savingPdf, setSavingPdf] = useState(false);
-  const [savingReport, setSavingReport] = useState(false);
-
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [showError, setShowError] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const [savedRecord, setSavedRecord] = useState(null);
-
   const draft = location.state?.draft;
+
+  const [existingReports, setExistingReports] =
+    useState([]);
+
+  const [loadingReports, setLoadingReports] =
+    useState(true);
+
+  const [loadError, setLoadError] =
+    useState("");
+
+  const [savingPdf, setSavingPdf] =
+    useState(false);
+
+  const [savingReport, setSavingReport] =
+    useState(false);
+
+  const [showSuccess, setShowSuccess] =
+    useState(false);
+
+  const [showError, setShowError] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  const [savedRecord, setSavedRecord] =
+    useState(null);
+
+  /* =========================================================
+     LOAD EXISTING REPORTS
+
+     Group:
+     Date + Team Shift + Work Shift
+  ========================================================= */
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadExistingReports() {
+      if (!draft) {
+        setLoadingReports(false);
+        return;
+      }
+
+      setLoadingReports(true);
+      setLoadError("");
+
+      try {
+        const reports =
+          await getReportsByGroup(
+            draft.date,
+            draft.teamShift,
+            draft.workShift
+          );
+
+        if (!active) return;
+
+        setExistingReports(reports);
+      } catch (err) {
+        console.error(
+          "Failed loading existing reports:",
+          err
+        );
+
+        if (!active) return;
+
+        setLoadError(
+          err?.message ||
+            "Existing report tidak dapat dimuat."
+        );
+      } finally {
+        if (active) {
+          setLoadingReports(false);
+        }
+      }
+    }
+
+    loadExistingReports();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    draft?.date,
+    draft?.teamShift,
+    draft?.workShift,
+  ]);
+
+  /* =========================================================
+     REPORTS SHOWN IN PREVIEW
+
+     Before save:
+     existing + draft
+
+     After save:
+     existing + saved record
+
+     This prevents duplicate rows after Save.
+  ========================================================= */
+
+  const previewReports = useMemo(() => {
+    if (!draft) {
+      return [];
+    }
+
+    if (savedRecord) {
+      const alreadyExists =
+        existingReports.some(
+          (item) =>
+            String(item.id) ===
+            String(savedRecord.id)
+        );
+
+      if (alreadyExists) {
+        return existingReports;
+      }
+
+      return [
+        ...existingReports,
+        savedRecord,
+      ];
+    }
+
+    return [
+      ...existingReports,
+      draft,
+    ];
+  }, [
+    existingReports,
+    draft,
+    savedRecord,
+  ]);
+
+  /* =========================================================
+     NO DRAFT
+  ========================================================= */
 
   if (!draft) {
     return (
@@ -31,12 +171,15 @@ export default function PreviewReport() {
           <h2>Tidak ada draft report.</h2>
 
           <p>
-            Silakan isi Daily Report terlebih dahulu.
+            Silakan isi Daily Report terlebih
+            dahulu.
           </p>
 
           <button
             className="button button-primary"
-            onClick={() => navigate("/input")}
+            onClick={() =>
+              navigate("/input")
+            }
           >
             Ke Input Report
           </button>
@@ -45,19 +188,59 @@ export default function PreviewReport() {
     );
   }
 
+  /* =========================================================
+     SAVE CURRENT DRAFT
+
+     IMPORTANT:
+     Only the current draft is inserted.
+     Existing rows are never overwritten.
+  ========================================================= */
+
   async function save() {
-    if (savingReport) return;
+    if (
+      savingReport ||
+      savedRecord
+    ) {
+      return;
+    }
 
     setSavingReport(true);
 
     setShowSuccess(false);
     setShowError(false);
+
     setErrorMessage("");
 
     try {
-      const record = await saveReport(draft);
+      const record =
+        await saveReport(draft);
 
       setSavedRecord(record);
+
+      /*
+       * Refetch the group after save.
+       *
+       * This is useful if another user
+       * also saved a report at almost
+       * the same time.
+       */
+      try {
+        const latestReports =
+          await getReportsByGroup(
+            draft.date,
+            draft.teamShift,
+            draft.workShift
+          );
+
+        setExistingReports(
+          latestReports
+        );
+      } catch (refreshError) {
+        console.warn(
+          "Report saved, but group refresh failed:",
+          refreshError
+        );
+      }
 
       setShowSuccess(true);
     } catch (err) {
@@ -67,19 +250,32 @@ export default function PreviewReport() {
         err?.message ||
         "Terjadi kesalahan saat menyimpan report.";
 
-      const lowerMessage = message.toLowerCase();
+      const lowerMessage =
+        message.toLowerCase();
 
-      if (lowerMessage.includes("failed to fetch")) {
+      if (
+        lowerMessage.includes(
+          "failed to fetch"
+        )
+      ) {
         message =
           "Tidak dapat terhubung ke Supabase. Periksa koneksi internet lalu coba lagi.";
       }
 
-      if (lowerMessage.includes("row-level security")) {
+      if (
+        lowerMessage.includes(
+          "row-level security"
+        )
+      ) {
         message =
           "Supabase menolak proses penyimpanan. Periksa konfigurasi Row Level Security.";
       }
 
-      if (lowerMessage.includes("duplicate")) {
+      if (
+        lowerMessage.includes(
+          "duplicate"
+        )
+      ) {
         message =
           "Data yang sama kemungkinan sudah tersimpan di database.";
       }
@@ -91,20 +287,33 @@ export default function PreviewReport() {
     }
   }
 
+  /* =========================================================
+     EXPORT CURRENT GROUP TO PDF
+  ========================================================= */
+
   async function exportPdf() {
-    if (!reportRef.current) return;
+    if (
+      !reportRef.current ||
+      loadingReports
+    ) {
+      return;
+    }
 
     setSavingPdf(true);
 
+    setShowError(false);
+    setErrorMessage("");
+
     try {
-      const canvas = await html2canvas(
-        reportRef.current,
-        {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        }
-      );
+      const canvas =
+        await html2canvas(
+          reportRef.current,
+          {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: "#ffffff",
+          }
+        );
 
       const pdf = new jsPDF({
         orientation: "landscape",
@@ -121,12 +330,18 @@ export default function PreviewReport() {
       const margin = 6;
 
       const ratio = Math.min(
-        (pageWidth - margin * 2) / canvas.width,
-        (pageHeight - margin * 2) / canvas.height
+        (pageWidth - margin * 2) /
+          canvas.width,
+
+        (pageHeight - margin * 2) /
+          canvas.height
       );
 
-      const w = canvas.width * ratio;
-      const h = canvas.height * ratio;
+      const w =
+        canvas.width * ratio;
+
+      const h =
+        canvas.height * ratio;
 
       pdf.addImage(
         canvas.toDataURL("image/png"),
@@ -137,8 +352,18 @@ export default function PreviewReport() {
         h
       );
 
+      const safeTeamShift =
+        String(
+          draft.teamShift || ""
+        ).replace(/\s+/g, "-");
+
+      const safeWorkShift =
+        String(
+          draft.workShift || ""
+        ).replace(/\s+/g, "-");
+
       pdf.save(
-        `Daily-Report-${draft.date}.pdf`
+        `Daily-Report-${draft.date}-${safeTeamShift}-${safeWorkShift}.pdf`
       );
     } catch (err) {
       console.error(err);
@@ -153,28 +378,83 @@ export default function PreviewReport() {
     }
   }
 
+  /* =========================================================
+     VIEW SAVED REPORT
+  ========================================================= */
+
   function goToSavedReport() {
     setShowSuccess(false);
 
     if (savedRecord?.id) {
-      navigate(`/history/${savedRecord.id}`, {
-        replace: true,
-      });
+      navigate(
+        `/history/${savedRecord.id}`,
+        {
+          replace: true,
+        }
+      );
     } else {
       navigate("/history");
     }
   }
 
+  /* =========================================================
+     ADD ANOTHER PROBLEM
+
+     Keep:
+     - Date
+     - Team Shift
+     - Work Shift
+
+     Other fields are cleared by InputReport
+     only if it supports these carried values.
+
+     For safety we pass a draft containing
+     the same report identity.
+  ========================================================= */
+
   function addAnotherReport() {
     setShowSuccess(false);
 
-    navigate("/input");
+    navigate("/input", {
+      state: {
+        draft: {
+          date: draft.date,
+
+          teamShift:
+            draft.teamShift,
+
+          workShift:
+            draft.workShift,
+
+          line: "",
+          machine: "",
+          machineOption: "",
+          source: "",
+
+          lineStop: "",
+          frequency: "1",
+
+          problem: "",
+          rootcause: "",
+          action: "",
+          pic: "",
+
+          problemImage: "",
+          problemImageName: "",
+
+          actionImage: "",
+          actionImageName: "",
+        },
+      },
+    });
   }
 
   return (
     <div className="page">
+      {/* =============================================
+          HEADER
+      ============================================= */}
 
-      {/* HEADER */}
       <div className="page-heading">
         <div>
           <span className="eyebrow">
@@ -186,18 +466,21 @@ export default function PreviewReport() {
           </h1>
 
           <p>
-            Periksa isi report sebelum disimpan ke database cloud.
+            Periksa isi report sebelum
+            disimpan ke database cloud.
           </p>
         </div>
 
         <div className="step-badge">
-          <b className="done">✓</b>
+          <b className="done">
+            ✓
+          </b>
 
           <span>
             Input
           </span>
 
-          <i></i>
+          <i />
 
           <b>
             2
@@ -209,28 +492,82 @@ export default function PreviewReport() {
         </div>
       </div>
 
-      {/* ACTION BUTTONS
-          BAGIAN INI TETAP SEPERTI KODE ASLI KAMU
-      */}
-      <div className="preview-actions">
+      {/* =============================================
+          EXISTING DATA INFORMATION
+      ============================================= */}
 
+      {!loadingReports &&
+        !loadError &&
+        existingReports.length > 0 && (
+          <div
+            className="info-banner"
+            style={{
+              marginTop: 0,
+              marginBottom: "15px",
+            }}
+          >
+            <span>
+              ℹ️
+            </span>
+
+            <div>
+              <strong>
+                Existing Daily Report Found
+              </strong>
+
+              <div>
+                {existingReports.length} problem
+                {existingReports.length > 1
+                  ? "s"
+                  : ""}{" "}
+                untuk tanggal, Team Shift,
+                dan Work Shift yang sama sudah
+                tersimpan.
+                {!savedRecord &&
+                  " Draft kamu ditambahkan di baris terakhir Preview."}
+              </div>
+            </div>
+          </div>
+        )}
+
+      {loadError && (
+        <div className="error-banner">
+          Existing report gagal dimuat:{" "}
+          {loadError}
+        </div>
+      )}
+
+      {/* =============================================
+          ACTION BUTTONS
+      ============================================= */}
+
+      <div className="preview-actions">
         <button
           className="button button-ghost"
           onClick={() =>
             navigate("/input", {
-              state: { draft },
+              state: {
+                draft,
+              },
             })
+          }
+          disabled={
+            savingReport ||
+            savingPdf
           }
         >
           ← Back to Edit
         </button>
 
         <div className="action-cluster">
-
           <button
             className="button button-secondary"
             onClick={exportPdf}
-            disabled={savingPdf || savingReport}
+            disabled={
+              savingPdf ||
+              savingReport ||
+              loadingReports
+            }
           >
             {savingPdf
               ? "Creating PDF..."
@@ -240,30 +577,60 @@ export default function PreviewReport() {
           <button
             className="button button-primary"
             onClick={save}
-            disabled={savingReport || savingPdf}
+            disabled={
+              savingReport ||
+              savingPdf ||
+              loadingReports ||
+              Boolean(savedRecord)
+            }
           >
             {savingReport
               ? "Saving..."
+              : savedRecord
+              ? "Saved ✓"
               : "Save to Supabase"}
           </button>
-
         </div>
       </div>
 
-      {/* REPORT PREVIEW */}
+      {/* =============================================
+          LOADING
+      ============================================= */}
+
+      {loadingReports && (
+        <div
+          className="info-banner"
+          style={{
+            marginTop: 0,
+            marginBottom: "15px",
+          }}
+        >
+          Loading existing Daily Report...
+        </div>
+      )}
+
+      {/* =============================================
+          REPORT PREVIEW
+
+          Existing Supabase data
+          +
+          Current draft
+      ============================================= */}
+
       <div className="preview-shell">
         <ReportDocument
-          reports={[draft]}
+          reports={previewReports}
           reportRef={reportRef}
         />
       </div>
 
-      {/* SUCCESS MODAL */}
+      {/* =============================================
+          SUCCESS MODAL
+      ============================================= */}
+
       {showSuccess && (
         <div className="status-modal-overlay">
-
           <div className="status-modal">
-
             <div className="status-icon success-status-icon">
               ✓
             </div>
@@ -277,11 +644,12 @@ export default function PreviewReport() {
             </h2>
 
             <p className="status-description">
-              Daily Report berhasil disimpan ke Supabase.
+              Problem berhasil ditambahkan
+              ke Daily Report yang sama di
+              Supabase.
             </p>
 
             <div className="status-report-info">
-
               <div>
                 <span>
                   Line
@@ -311,38 +679,38 @@ export default function PreviewReport() {
                   {draft.lineStop || 0}'
                 </strong>
               </div>
-
             </div>
 
             <div className="status-modal-actions">
-
               <button
                 className="button button-secondary"
-                onClick={addAnotherReport}
+                onClick={
+                  addAnotherReport
+                }
               >
-                + Add Another Report
+                + Add Another Problem
               </button>
 
               <button
                 className="button button-primary"
-                onClick={goToSavedReport}
+                onClick={
+                  goToSavedReport
+                }
               >
                 View Saved Report
               </button>
-
             </div>
-
           </div>
-
         </div>
       )}
 
-      {/* ERROR MODAL */}
+      {/* =============================================
+          ERROR MODAL
+      ============================================= */}
+
       {showError && (
         <div className="status-modal-overlay">
-
           <div className="status-modal">
-
             <div className="status-icon error-status-icon">
               !
             </div>
@@ -356,11 +724,12 @@ export default function PreviewReport() {
             </h2>
 
             <p className="status-description">
-              Proses belum berhasil. Data report kamu tetap aman di halaman ini.
+              Proses belum berhasil. Data
+              report kamu tetap aman di
+              halaman ini.
             </p>
 
             <div className="error-message-box">
-
               <strong>
                 Error Detail
               </strong>
@@ -368,11 +737,9 @@ export default function PreviewReport() {
               <p>
                 {errorMessage}
               </p>
-
             </div>
 
             <div className="status-modal-actions">
-
               <button
                 className="button button-secondary"
                 onClick={() =>
@@ -382,23 +749,21 @@ export default function PreviewReport() {
                 Back to Report
               </button>
 
-              <button
-                className="button button-primary"
-                onClick={() => {
-                  setShowError(false);
-                  save();
-                }}
-              >
-                Try Save Again
-              </button>
-
+              {!savedRecord && (
+                <button
+                  className="button button-primary"
+                  onClick={() => {
+                    setShowError(false);
+                    save();
+                  }}
+                >
+                  Try Save Again
+                </button>
+              )}
             </div>
-
           </div>
-
         </div>
       )}
-
     </div>
   );
 }
