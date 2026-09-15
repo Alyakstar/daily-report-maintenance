@@ -1,7 +1,7 @@
 import { LINES } from "../constants";
 import { formatReportDate } from "../utils/format";
 
-const SOURCE_COLUMNS = ["BM", "PM", "IMP", "CM"];
+const SOURCE_COLUMNS = ["BM", "PM", "IMP"];
 
 export default function ReportDocument({ reports = [], reportRef }) {
   const summary = Object.fromEntries(LINES.map((line) => [line, 0]));
@@ -45,7 +45,7 @@ export default function ReportDocument({ reports = [], reportRef }) {
             <th rowSpan="2" className="col-no">NO</th>
             <th rowSpan="2" className="col-line">LINE</th>
             <th rowSpan="2" className="col-machine">MESIN</th>
-            <th colSpan="4" className="source-group">SOURCE</th>
+            <th colSpan="3" className="source-group">SOURCE</th>
             <th rowSpan="2" className="col-problem">PROBLEM</th>
             <th rowSpan="2" className="col-stop">LINE STOP</th>
             <th rowSpan="2" className="col-root">ROOTCAUSE</th>
@@ -57,7 +57,6 @@ export default function ReportDocument({ reports = [], reportRef }) {
             <th className="source-bm">BM</th>
             <th className="source-pm">PM</th>
             <th className="source-imp">IMP</th>
-            <th className="source-cm">CM</th>
           </tr>
         </thead>
         <tbody>
