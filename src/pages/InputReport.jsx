@@ -1,4 +1,8 @@
-import { useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LINES,
@@ -54,6 +58,17 @@ export default function InputReport() {
 
   const navigate = useNavigate();
 
+  const [photoSource, setPhotoSource] = useState(null);
+  const [cameraTarget, setCameraTarget] = useState(null);
+  const [cameraError, setCameraError] = useState("");
+
+  const cameraPreviewRef = useRef(null);
+  const photoCanvasRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+
+  const problemFileRef = useRef(null);
+  const actionFileRef = useRef(null);
+
   function change(e) {
     const { name, value } = e.target;
 
@@ -103,6 +118,133 @@ export default function InputReport() {
     [nameField]: "",
   }));
 }
+
+function stopCamera() {
+  if (cameraStreamRef.current) {
+    cameraStreamRef.current
+      .getTracks()
+      .forEach((track) => track.stop());
+
+    cameraStreamRef.current = null;
+  }
+
+  if (cameraPreviewRef.current) {
+    cameraPreviewRef.current.srcObject = null;
+  }
+}
+
+async function openCamera(target) {
+  setCameraError("");
+  setCameraTarget(target);
+
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera API tidak tersedia.");
+    }
+
+    stopCamera();
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: {
+            ideal: "environment",
+          },
+        },
+        audio: false,
+      });
+
+    cameraStreamRef.current = stream;
+
+    setTimeout(() => {
+      if (cameraPreviewRef.current) {
+        cameraPreviewRef.current.srcObject = stream;
+
+        cameraPreviewRef.current
+          .play()
+          .catch((error) => {
+            console.error(
+              "Camera preview error:",
+              error
+            );
+          });
+      }
+    }, 100);
+  } catch (error) {
+    console.error("Camera error:", error);
+
+    setCameraError(
+      "Kamera tidak dapat diakses. Pastikan izin kamera sudah diberikan."
+    );
+  }
+}
+
+function closeCamera() {
+  stopCamera();
+
+  setCameraTarget(null);
+  setCameraError("");
+}
+
+function capturePhoto() {
+  const camera = cameraPreviewRef.current;
+  const canvas = photoCanvasRef.current;
+
+  if (!camera || !canvas) {
+    return;
+  }
+
+  if (!camera.videoWidth || !camera.videoHeight) {
+    alert("Kamera belum siap. Tunggu sebentar lalu coba lagi.");
+    return;
+  }
+
+  canvas.width = camera.videoWidth;
+  canvas.height = camera.videoHeight;
+
+  const context = canvas.getContext("2d");
+
+  context.drawImage(
+    camera,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  const photo = canvas.toDataURL(
+    "image/jpeg",
+    0.9
+  );
+
+  if (cameraTarget === "problem") {
+    setForm((prev) => ({
+      ...prev,
+      problemImage: photo,
+      problemImageName: `problem-camera-${Date.now()}.jpg`,
+    }));
+  }
+
+  if (cameraTarget === "action") {
+    setForm((prev) => ({
+      ...prev,
+      actionImage: photo,
+      actionImageName: `action-camera-${Date.now()}.jpg`,
+    }));
+  }
+
+  closeCamera();
+}
+
+useEffect(() => {
+  return () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current
+        .getTracks()
+        .forEach((track) => track.stop());
+    }
+  };
+}, []);
 
   function next(e) {
     e.preventDefault();
@@ -505,8 +647,21 @@ export default function InputReport() {
               Ilustrasi Problem
             </span>
 
-            <label className="upload-box">
+<label
+  className="upload-box"
+  onClick={(e) => {
+    if (e.target === problemFileRef.current) {
+      return;
+    }
+
+    if (!form.problemImage) {
+      e.preventDefault();
+      setPhotoSource("problem");
+    }
+  }}
+>
               <input
+                ref={problemFileRef}
                 type="file"
                 accept="image/*"
                 onChange={(e) =>
@@ -574,8 +729,21 @@ export default function InputReport() {
               Ilustrasi Penanggulangan
             </span>
 
-            <label className="upload-box">
+<label
+  className="upload-box"
+  onClick={(e) => {
+    if (e.target === actionFileRef.current) {
+      return;
+    }
+
+    if (!form.actionImage) {
+      e.preventDefault();
+      setPhotoSource("action");
+    }
+  }}
+>
               <input
+               ref={actionFileRef}
                 type="file"
                 accept="image/*"
                 onChange={(e) =>
@@ -636,6 +804,154 @@ export default function InputReport() {
             </label>
           </div>
         </div>
+
+       {photoSource && (
+  <div
+    className="photo-source-overlay"
+    onClick={() => setPhotoSource(null)}
+  >
+    <div
+      className="photo-source-modal"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="photo-source-close"
+        onClick={() => setPhotoSource(null)}
+      >
+        ×
+      </button>
+
+      <h3>Tambahkan Ilustrasi</h3>
+
+      <p>Pilih sumber foto</p>
+
+      <button
+        type="button"
+        className="photo-source-option"
+        onClick={() => {
+          const target = photoSource;
+
+          setPhotoSource(null);
+
+          if (target === "problem") {
+            problemFileRef.current?.click();
+          }
+
+          if (target === "action") {
+            actionFileRef.current?.click();
+          }
+        }}
+      >
+        <span className="photo-source-icon">
+          🖼️
+        </span>
+
+        <span>
+          <strong>Upload Foto</strong>
+          <small>
+            Pilih dari galeri atau file perangkat
+          </small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="photo-source-option"
+        onClick={() => {
+          const target = photoSource;
+
+          setPhotoSource(null);
+
+          openCamera(target);
+        }}
+      >
+        <span className="photo-source-icon">
+          📷
+        </span>
+
+        <span>
+          <strong>Ambil Foto</strong>
+          <small>
+            Gunakan kamera HP atau webcam
+          </small>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="photo-source-cancel"
+        onClick={() => setPhotoSource(null)}
+      >
+        Batal
+      </button>
+    </div>
+  </div>
+)} 
+
+{cameraTarget && (
+  <div className="photo-source-overlay">
+    <div className="camera-photo-modal">
+      <div className="camera-photo-header">
+        <div>
+          <h3>Ambil Foto</h3>
+
+          <p>
+            Arahkan kamera ke objek lalu ambil foto.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="photo-source-close"
+          onClick={closeCamera}
+        >
+          ×
+        </button>
+      </div>
+
+      {cameraError ? (
+        <div className="camera-photo-error">
+          {cameraError}
+        </div>
+      ) : (
+        <div className="camera-photo-preview">
+          <video
+            ref={cameraPreviewRef}
+            autoPlay
+            playsInline
+            muted
+          />
+        </div>
+      )}
+
+      <canvas
+        ref={photoCanvasRef}
+        style={{ display: "none" }}
+      />
+
+      <div className="camera-photo-actions">
+        <button
+          type="button"
+          className="button button-secondary"
+          onClick={closeCamera}
+        >
+          Batal
+        </button>
+
+        {!cameraError && (
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={capturePhoto}
+          >
+            📷 Ambil Foto
+          </button>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
         {/* =========================
             BUTTON
