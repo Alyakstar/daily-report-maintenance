@@ -4,7 +4,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
 
-  base: "/daily-report-maintenance/",
+  base: process.env.VERCEL
+    ? "/"
+    : "/daily-report-maintenance/",
 
   server: {
     port: 5173,
