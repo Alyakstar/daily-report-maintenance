@@ -7,7 +7,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   LINES,
   SOURCES,
-  FINISHING_MACHINES,
+  MACHINES_BY_LINE,
 } from "../constants";
 import { currentDateInput } from "../utils/format";
 
@@ -62,12 +62,24 @@ export default function InputReport() {
   const [cameraTarget, setCameraTarget] = useState(null);
   const [cameraError, setCameraError] = useState("");
 
+  const [machineDropdownOpen, setMachineDropdownOpen] =
+  useState(false);
+
+  const machineDropdownRef = useRef(null);
+
   const cameraPreviewRef = useRef(null);
   const photoCanvasRef = useRef(null);
   const cameraStreamRef = useRef(null);
 
   const problemFileRef = useRef(null);
   const actionFileRef = useRef(null);
+
+  const availableMachines =
+    MACHINES_BY_LINE[form.line] || [];
+
+  const filteredMachines = availableMachines.filter((machine) =>
+    machine.toLowerCase().includes(form.machine.toLowerCase())
+  );
 
   function change(e) {
     const { name, value } = e.target;
@@ -243,6 +255,31 @@ useEffect(() => {
         .getTracks()
         .forEach((track) => track.stop());
     }
+  };
+}, []);
+
+useEffect(() => {
+  function handleClickOutside(event) {
+    if (
+      machineDropdownRef.current &&
+      !machineDropdownRef.current.contains(
+        event.target
+      )
+    ) {
+      setMachineDropdownOpen(false);
+    }
+  }
+
+  document.addEventListener(
+    "mousedown",
+    handleClickOutside
+  );
+
+  return () => {
+    document.removeEventListener(
+      "mousedown",
+      handleClickOutside
+    );
   };
 }, []);
 
@@ -434,56 +471,80 @@ useEffect(() => {
         ========================== */}
 
         <div className="form-grid two">
-          <label className="field">
-            <span>Mesin *</span>
+<label className="field">
+  <span>Mesin *</span>
 
-            {form.line === "Finishing" ? (
-              <>
-                <select
-                  name="machineOption"
-                  value={form.machineOption || ""}
-                  onChange={change}
-                  required
-                >
-                  <option value="">
-                    Pilih mesin...
-                  </option>
+  {MACHINES_BY_LINE[form.line] ? (
+    <div
+      className="machine-dropdown"
+      ref={machineDropdownRef}
+    >
+      <div className="machine-input-wrapper">
+        <input
+          type="text"
+          name="machine"
+          value={form.machine}
+          onChange={(e) => {
+            change(e);
+            setMachineDropdownOpen(true);
+          }}
+          onFocus={() => {
+            setMachineDropdownOpen(true);
+          }}
+          placeholder="Ketik nama mesin..."
+          autoComplete="off"
+          required
+        />
 
-                  {FINISHING_MACHINES.map(
-                    (machine) => (
-                      <option
-                        key={machine}
-                        value={machine}
-                      >
-                        {machine}
-                      </option>
-                    )
-                  )}
-                </select>
+        <span
+          className={`machine-dropdown-arrow ${
+            machineDropdownOpen ? "open" : ""
+          }`}
+        >
+          ▾
+        </span>
+      </div>
 
-                {form.machineOption ===
-                  "Others" && (
-                  <input
-                    type="text"
-                    name="machine"
-                    value={form.machine}
-                    onChange={change}
-                    placeholder="Masukkan nama mesin lainnya..."
-                    required
-                  />
-                )}
-              </>
-            ) : (
-              <input
-                type="text"
-                name="machine"
-                value={form.machine}
-                onChange={change}
-                placeholder="Contoh: Flask Closing"
-                required
-              />
-            )}
-          </label>
+      {machineDropdownOpen && (
+        <div className="machine-dropdown-menu">
+          {filteredMachines.length > 0 ? (
+            filteredMachines.map((machine) => (
+              <button
+                key={machine}
+                type="button"
+                className="machine-dropdown-option"
+                onClick={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    machine,
+                    machineOption: machine,
+                  }));
+
+                  setMachineDropdownOpen(false);
+                }}
+              >
+                {machine}
+              </button>
+            ))
+          ) : (
+            <div className="machine-dropdown-empty">
+              Mesin tidak ditemukan
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  ) : (
+    <input
+      type="text"
+      name="machine"
+      value={form.machine}
+      onChange={change}
+      placeholder="Contoh: Flask Closing"
+      required
+    />
+  )}
+</label>
 
           <label className="field">
             <span>Source *</span>

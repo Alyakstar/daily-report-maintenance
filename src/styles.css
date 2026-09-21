@@ -1606,3 +1606,93 @@ select:focus, input:focus, textarea:focus { border-color: #d14b4b; box-shadow: 0
     width: 100%;
   }
 }
+
+/* =========================================================
+   MACHINE SEARCHABLE DROPDOWN
+========================================================= */
+
+.machine-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.machine-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.machine-input-wrapper input {
+  padding-right: 38px;
+}
+
+.machine-dropdown-arrow {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #667085;
+  font-size: 14px;
+  pointer-events: none;
+  transition: transform 0.18s ease;
+}
+
+.machine-dropdown-arrow.open {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.machine-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+
+  max-height: 260px;
+  overflow-y: auto;
+
+  background: #ffffff;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+
+  z-index: 100;
+  padding: 5px;
+}
+
+.machine-dropdown-option {
+  width: 100%;
+
+  display: block;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+
+  padding: 10px 11px;
+
+  color: #1d2939;
+  font-size: 13px;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.machine-dropdown-option:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.machine-dropdown-option:focus {
+  outline: none;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.machine-dropdown-empty {
+  padding: 12px 11px;
+
+  color: #98a2b3;
+  font-size: 12px;
+  text-align: center;
+}
