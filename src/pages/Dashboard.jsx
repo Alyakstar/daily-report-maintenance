@@ -316,11 +316,13 @@ export default function Dashboard() {
             selectedLine
         )
         .forEach((report) => {
-          const machineName =
-            String(
-              report.machine ||
-                "Unknown Machine"
-            ).trim();
+        const machineName =
+          String(
+            report.machine ||
+              "Unknown Machine"
+          )
+            .split(" (")[0]
+            .trim();
 
           if (!totals[machineName]) {
             totals[machineName] =
@@ -375,13 +377,14 @@ export default function Dashboard() {
       const groups = {};
 
       filtered
-        .filter(
-          (report) =>
-            report.line ===
-              selectedLine &&
-            report.machine ===
-              selectedMachine
-        )
+      .filter(
+        (report) =>
+          report.line ===
+            selectedLine &&
+          String(report.machine)
+            .split(" (")[0]
+            .trim() === selectedMachine
+      )
         .forEach((report) => {
           const normalized =
             normalizeProblem(

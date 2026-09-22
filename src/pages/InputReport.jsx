@@ -78,7 +78,9 @@ export default function InputReport() {
     MACHINES_BY_LINE[form.line] || [];
 
   const filteredMachines = availableMachines.filter((machine) =>
-    machine.toLowerCase().includes(form.machine.toLowerCase())
+  `${machine.no} ${machine.name}`
+    .toLowerCase()
+    .includes(form.machine.toLowerCase())
   );
 
   function change(e) {
@@ -491,7 +493,7 @@ useEffect(() => {
           onFocus={() => {
             setMachineDropdownOpen(true);
           }}
-          placeholder="Ketik nama mesin..."
+          placeholder="Ketik no. mesin..."
           autoComplete="off"
           required
         />
@@ -508,24 +510,24 @@ useEffect(() => {
       {machineDropdownOpen && (
         <div className="machine-dropdown-menu">
           {filteredMachines.length > 0 ? (
-            filteredMachines.map((machine) => (
+            filteredMachines.map((machine, index) => (
               <button
-                key={machine}
+                key={`${machine.no}-${machine.name}-${index}`}
                 type="button"
                 className="machine-dropdown-option"
                 onClick={() => {
                   setForm((prev) => ({
                     ...prev,
-                    machine,
-                    machineOption: machine,
-                  }));
+                    machine: `${machine.no} (${machine.name})`,
+                    machineOption: `${machine.no} (${machine.name})`,
+              }));
 
-                  setMachineDropdownOpen(false);
-                }}
-              >
-                {machine}
-              </button>
-            ))
+              setMachineDropdownOpen(false);
+          }}
+        >
+          {machine.no} ({machine.name})
+          </button>
+      ))
           ) : (
             <div className="machine-dropdown-empty">
               Mesin tidak ditemukan
